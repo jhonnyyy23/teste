@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enigma do Dia</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1f2328; --muted: #6b6f76;
+    --line: #e2ded5; --accent: #2f6fde; --ok: #1f9d55; --bad: #d64545;
+    --done: #a9adb3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c; --card: #1f2227; --ink: #e8e9eb; --muted: #9aa0a8;
+      --line: #33373e; --accent: #6c9cff; --ok: #3ecf7a; --bad: #ff6b6b;
+      --done: #5d636b; color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; }
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); border-radius: 8px; padding: 7px 14px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary, button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .lang { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .lang button { border: 0; border-radius: 0; padding: 7px 10px; }
+  .levels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+  .levels button { padding: 6px 12px; font-size: .9rem; }
+  .levels button .size { opacity: .7; font-size: .8em; margin-left: 4px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 14px 0 18px; color: var(--muted); }
+  .bar b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .house {
+    background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--line);
+    border-radius: 12px; padding: 12px;
+  }
+  .house h3 { margin: 0 0 4px; font-size: 1rem; }
+  .house label { display: block; font-size: .78rem; color: var(--muted); margin-top: 8px; }
+  .house select {
+    width: 100%; font: inherit; padding: 6px 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  .house select.wrong { border-color: var(--bad); }
+  .house select.right { border-color: var(--ok); }
+  .clues { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-top: 18px; }
+  .clues h2 { font-size: 1.05rem; margin: 0 0 6px; }
+  .clues .hint { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
+  /* pistas em duas colunas, como no original */
+  .clues ul { list-style: none; margin: 0; padding: 0; user-select: none; }
+  @media (min-width: 768px) { .clues ul { columns: 2; column-gap: 24px; } }
+  .clues li {
+    display: flex; align-items: stretch; gap: 10px; padding: 5px 4px; margin-bottom: 4px;
+    border-bottom: 1px solid var(--line); break-inside: avoid-column; border-radius: 4px;
+  }
+  .clues li .ico { flex: 0 0 20px; display: flex; align-items: center; }
+  .clues li .ico svg { width: 20px; height: 20px; }
+  .clues li .ico .box { color: var(--line); }
+  .clues li.ok { color: var(--done); text-decoration: line-through; }
+  .clues li.ok .ico { color: var(--ok); }
+  .clues li.bad { color: var(--bad); }
+  .clues li.bad .ico { color: var(--bad); }
+  .clues li.hl { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  .chip {
+    background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 4px;
+    padding: 0 2px; cursor: pointer; transition: background .15s;
+  }
+  .chip.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .msg { margin-top: 14px; padding: 10px 14px; border-radius: 10px; display: none; }
+  .msg.show { display: block; }
+  .msg.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+  .msg.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+  .msg.info { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+  .empty { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 18px; }
+  .empty code { background: var(--bg); padding: 2px 6px; border-radius: 6px; }
+  details { margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p, details li { color: var(--muted); }
+</style>
+<script src="dados/indice.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="title"></h1>
+      <p class="sub" id="date"></p>
+    </div>
+    <div class="nav">
+      <button id="prev"></button>
+      <button id="latest"></button>
+      <button id="next"></button>
+      <div class="lang">
+        <button data-lang="pt" title="Português">🇧🇷 PT</button>
+        <button data-lang="en" title="English">🇺🇸 EN</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="game">
+    <div class="levels" id="levels"></div>
+    <div class="bar">
+      <span>⏱️ <span id="lblTime"></span>: <b id="timer">00:00</b></span>
+      <span>🕛 <span id="lblNew"></span>: <b id="countdown">--:--:--</b></span>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="clues">
+      <h2 id="lblClues"></h2>
+      <p class="hint" id="lblHint"></p>
+      <ul id="clues"></ul>
+    </div>
+    <div class="actions">
+      <button class="primary" id="check"></button>
+      <button id="clear"></button>
+      <button id="reveal"></button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+  <div class="empty" id="empty" hidden></div>
+
+  <details>
+    <summary id="lblHow"></summary>
+    <div id="how"></div>
+  </details>
+</div>
+
+<script>
+(() => {
+  // ---------- Textos da interface ----------
+  const UI = {
+    pt: {
+      locale: 'pt-BR', title: 'Enigma do Dia', prev: '◀ Anterior', latest: 'Mais recente', next: 'Próximo ▶',
+      time: 'Tempo', newIn: 'Novos enigmas em', clues: 'Pistas', hint: 'As pistas são riscadas de verde quando cumpridas e ficam vermelhas quando o tabuleiro as contradiz. Passe o mouse num item para ver as pistas que o citam.',
+      check: 'Verificar', clear: 'Limpar', reveal: 'Revelar solução', revealSure: 'Tem certeza? Clique de novo',
+      house: 'Casa', how: 'Como jogar',
+      missing: n => `Ainda faltam ${n} ${n === 1 ? 'item' : 'itens'} para preencher.`,
+      wrong: n => `Quase! ${n} ${n === 1 ? 'item está' : 'itens estão'} no lugar errado (marcados em vermelho).`,
+      solved: (lv, t) => `🎉 Parabéns! Você resolveu o nível ${lv} em ${t}.`,
+      solvedShort: t => `🎉 Resolvido em ${t}!`,
+      revealed: 'Solução revelada.',
+      noDay: d => `Os enigmas de ${d} ainda não foram baixados.`,
+      noData: `<b>Nenhum enigma baixado ainda.</b><p>Clique com o botão direito em <code>atualizar.ps1</code> (na pasta do jogo) e escolha “Executar com o PowerShell”. Depois recarregue esta página.</p>`,
+      levels: { 'very-easy': 'Muito fácil', easy: 'Fácil', medium: 'Médio', hard: 'Difícil', 'very-hard': 'Muito difícil', 'ultra-hard': 'Ultra difícil' },
+      howHtml: `<p>Há uma fileira de casas, numeradas da esquerda para a direita. Cada casa recebe exatamente um item de cada categoria. Nenhum item é compartilhado entre duas casas — tudo o que você atribuir some dos menus das outras casas.</p>
+        <ul>
+          <li>Seis enigmas por dia, do muito fácil ao ultra difícil. Os dois mais fáceis têm quatro casas e quatro categorias; depois passam a cinco casas com cinco, seis e, por fim, sete categorias.</li>
+          <li>A posição importa: “ao lado de” significa uma casa para qualquer um dos lados.</li>
+          <li>“Imediatamente à direita” significa a casa seguinte; “em algum lugar à direita” significa qualquer casa mais à direita.</li>
+          <li>“Entre A e B, nessa ordem” significa que A fica à esquerda e B à direita (não necessariamente vizinhos).</li>
+          <li>Não é preciso chutar: comece pelas pistas definitivas e avance por eliminação.</li>
+        </ul>`,
+    },
+    en: {
+      locale: 'en-US', title: 'Daily Riddle', prev: '◀ Previous', latest: 'Latest', next: 'Next ▶',
+      time: 'Time', newIn: 'New riddles in', clues: 'Clues', hint: 'Clues turn green and get crossed out when satisfied, and red when the board contradicts them. Hover an item to see every clue that mentions it.',
+      check: 'Check', clear: 'Clear', reveal: 'Reveal solution', revealSure: 'Are you sure? Click again',
+      house: 'House', how: 'How to play',
+      missing: n => `${n} ${n === 1 ? 'item is' : 'items are'} still empty.`,
+      wrong: n => `Almost! ${n} ${n === 1 ? 'item is' : 'items are'} in the wrong place (marked in red).`,
+      solved: (lv, t) => `🎉 Congratulations! You solved the ${lv} riddle in ${t}.`,
+      solvedShort: t => `🎉 Solved in ${t}!`,
+      revealed: 'Solution revealed.',
+      noDay: d => `The riddles for ${d} have not been downloaded yet.`,
+      noData: `<b>No riddles downloaded yet.</b><p>Right-click <code>atualizar.ps1</code> (in the game folder) and choose “Run with PowerShell”. Then reload this page.</p>`,
+      levels: { 'very-easy': 'Very Easy', easy: 'Easy', medium: 'Medium', hard: 'Hard', 'very-hard': 'Very Hard', 'ultra-hard': 'Ultra Hard' },
+      howHtml: `<p>There is a row of houses, numbered from left to right. Each house takes exactly one item from every attribute. No item is ever shared between two houses, so anything you assign disappears from the other houses' menus.</p>
+        <ul>
+          <li>Six riddles are set each day, very easy up to ultra hard. The two easiest levels use four houses and four attributes, and from there it moves to five houses carrying five, six and finally seven attributes.</li>
+          <li>Positional wording matters. “Next to”, “beside” and “adjacent to” all mean one house in either direction.</li>
+          <li>“Somewhere between A and B, in that order” means A is on the left and B on the right (not necessarily neighbours).</li>
+          <li>No guessing is ever required: work from the definite clues outward.</li>
+        </ul>`,
+    },
+  };
+
+  // ---------- Vocabulário do original em português ----------
+  // itens: palavra em inglês -> [nome, gênero, cor css]
+  const it = (n, g = 'm', css) => ({ n, g, css });
+  const da = g => (g === 'f' ? 'da' : 'do');
+  const oa = g => (g === 'f' ? 'a' : 'o');
+  const um = g => (g === 'f' ? 'uma' : 'um');
+  const B = x => `<span class="chip" data-k="${x.key}">${esc(x.e + ' ' + x.pt.n)}</span>`;
+
+  const PT = {
+    Color: {
+      label: 'Cor', house: true,
+      subj: x => `a casa ${B(x)}`, pred: x => `é ${B(x)}`,
+      items: {
+        blue: it('Azul', 'f', '#3b82f6'), green: it('Verde', 'f', '#22a35a'), orange: it('Laranja', 'f', '#f08a24'),
+        white: it('Branca', 'f', '#d9d9d9'), black: it('Preta', 'f', '#222222'), purple: it('Roxa', 'f', '#8b5cf6'),
+        red: it('Vermelha', 'f', '#e04444'), yellow: it('Amarela', 'f', '#f2c42c'),
+      },
+    },
+    Tree: {
+      label: 'Árvore', house: true,
+      subj: x => `a casa à sombra ${da(x.pt.g)} ${B(x)}`, pred: x => `fica à sombra ${da(x.pt.g)} ${B(x)}`,
+      items: {
+        pine: it('Pinheiro'), oak: it('Carvalho'), palm: it('Palmeira', 'f'), maple: it('Bordo'),
+        spruce: it('Abeto'), bamboo: it('Bambu'),
+      },
+    },
+    Breakfast: {
+      label: 'Café da manhã', subj: x => `quem adora ${B(x)} no café da manhã`,
+      items: {
+        toast: it('Torrada', 'f'), omelet: it('Omelete', 'f'), croissant: it('Croissant'), bacon: it('Bacon'),
+        egg: it('Ovo'), pancake: it('Panqueca', 'f'), cereal: it('Cereal'), bagel: it('Bagel'), waffle: it('Waffle'),
+      },
+    },
+    Job: {
+      label: 'Profissão', subj: x => `o ${B(x)}`,
+      items: {
+        pilot: it('Piloto'), doctor: it('Médico'), farmer: it('Fazendeiro'), chef: it('Cozinheiro'),
+        artist: it('Artista'), teacher: it('Professor'), scientist: it('Cientista'), firefighter: it('Bombeiro'),
+        policeman: it('Policial'), builder: it('Construtor'),
+      },
+    },
+    Nationality: {
+      label: 'Nacionalidade', subj: x => `o ${B(x)}`,
+      items: {
+        Chinese: it('Chinês'), German: it('Alemão'), Danish: it('Dinamarquês'), French: it('Francês'),
+        British: it('Britânico'), Italian: it('Italiano'), Japanese: it('Japonês'), Mexican: it('Mexicano'),
+        Norwegian: it('Norueguês'), Swedish: it('Sueco'),
+      },
+    },
+    Animal: {
+      label: 'Animal', subj: x => `quem é fã ${da(x.pt.g)} ${B(x)}`,
+      items: {
+        elephant: it('Elefante'), monkey: it('Macaco'), bear: it('Urso'), panda: it('Panda'), lion: it('Leão'),
+        fox: it('Raposa', 'f'), giraffe: it('Girafa', 'f'), zebra: it('Zebra', 'f'), kangaroo: it('Canguru'),
+        flamingo: it('Flamingo'),
+      },
+    },
+    Pet: {
+      label: 'Animal de estimação', subj: x => `quem tem ${um(x.pt.g)} ${B(x)}`,
+      items: {
+        snake: it('Cobra', 'f'), fish: it('Peixe'), turtle: it('Tartaruga', 'f'), bird: it('Pássaro'),
+        rabbit: it('Coelho'), cat: it('Gato'), horse: it('Cavalo'), dog: it('Cachorro'), pig: it('Porco'),
+        hamster: it('Hamster'),
+      },
+    },
+    Dessert: {
+      label: 'Sobremesa', subj: x => `quem prefere ${B(x)} de sobremesa`,
+      items: {
+        dango: it('Dango'), 'ice cream': it('Sorvete'), donut: it('Donut'), cookie: it('Cookie'),
+        chocolate: it('Chocolate'), candy: it('Bala', 'f'), pudding: it('Pudim'), cake: it('Bolo'),
+        pie: it('Torta', 'f'), cupcake: it('Cupcake'),
+      },
+    },
+    Drink: {
+      label: 'Bebida', subj: x => `quem bebe ${B(x)}`,
+      items: {
+        coffee: it('Café'), tea: it('Chá'), water: it('Água', 'f'), milk: it('Leite'), soda: it('Refrigerante'),
+        coconut: it('Água de coco', 'f'), juice: it('Suco'), iced: it('Chá gelado'), boba: it('Bubble tea'),
+        herbal: it('Chá de ervas'),
+      },
+    },
+    Flower: {
+      label: 'Flor', subj: x => `quem cultiva ${B(x)} no jardim`,
+      items: {
+        tulip: it('Tulipa', 'f'), sakura: it('Sakura', 'f'), rose: it('Rosa', 'f'), hibiscus: it('Hibisco'),
+        sunflower: it('Girassol'), daisy: it('Margarida', 'f'), rosette: it('Roseta', 'f'), bouquet: it('Buquê'),
+        lotus: it('Lótus'), hyacinth: it('Jacinto'),
+      },
+    },
+    Food: {
+      label: 'Comida', subj: x => `quem tem ${B(x)} como prato favorito`,
+      items: {
+        taco: it('Taco'), burger: it('Hambúrguer'), pizza: it('Pizza', 'f'), curry: it('Curry'), ramen: it('Lámen'),
+        pasta: it('Macarrão'), sushi: it('Sushi'), salad: it('Salada', 'f'), stew: it('Ensopado'),
+        sandwich: it('Sanduíche'),
+      },
+    },
+    Fruit: {
+      label: 'Fruta', subj: x => `quem gosta de comer ${B(x)}`,
+      items: {
+        grape: it('Uva', 'f'), orange: it('Laranja', 'f'), lemon: it('Limão'), banana: it('Banana', 'f'),
+        pineapple: it('Abacaxi'), apple: it('Maçã', 'f'), peach: it('Pêssego'), cherry: it('Cereja', 'f'),
+        strawberry: it('Morango'), kiwi: it('Kiwi'),
+      },
+    },
+    Hobby: {
+      label: 'Passatempo', subj: x => `quem tem ${B(x)} como passatempo`,
+      items: {
+        writing: it('Escrita', 'f'), fishing: it('Pesca', 'f'), painting: it('Pintura', 'f'), gaming: it('Videogame'),
+        darts: it('Dardos'), running: it('Corrida', 'f'), reading: it('Leitura', 'f'), photography: it('Fotografia', 'f'),
+        yoga: it('Ioga', 'f'), knitting: it('Tricô'),
+      },
+    },
+    Instrument: {
+      label: 'Instrumento', subj: x => (x.w === 'vocals' ? `quem faz o ${B(x)}` : `quem toca ${B(x)}`),
+      items: {
+        vocals: it('Vocal'), saxophone: it('Saxofone'), guitar: it('Guitarra', 'f'), piano: it('Piano'),
+        trumpet: it('Trompete'), violin: it('Violino'), drums: it('Bateria', 'f'), flute: it('Flauta', 'f'),
+        banjo: it('Banjo'), bongo: it('Bongô'),
+      },
+    },
+    Seafood: {
+      label: 'Frutos do mar', subj: x => `quem adora comer ${B(x)}`,
+      items: {
+        octopus: it('Polvo'), clam: it('Marisco'), crab: it('Caranguejo'), shrimp: it('Camarão'),
+        squid: it('Lula', 'f'), lobster: it('Lagosta', 'f'), oyster: it('Ostra', 'f'),
+      },
+    },
+    Sport: {
+      label: 'Esporte', subj: x => `quem pratica ${B(x)}`,
+      items: {
+        baseball: it('Beisebol'), soccer: it('Futebol'), golf: it('Golfe'), tennis: it('Tênis'),
+        basketball: it('Basquete'), football: it('Futebol americano'), rugby: it('Rúgbi'), swimming: it('Natação', 'f'),
+        volleyball: it('Vôlei'), hockey: it('Hóquei'),
+      },
+    },
+    Vegetable: {
+      label: 'Legume', subj: x => `quem cultiva ${B(x)} na horta`,
+      items: {
+        corn: it('Milho'), tomato: it('Tomate'), eggplant: it('Berinjela', 'f'), cucumber: it('Pepino'),
+        carrot: it('Cenoura', 'f'), broccoli: it('Brócolis'), lettuce: it('Alface', 'f'), garlic: it('Alho'),
+        onion: it('Cebola', 'f'), pepper: it('Pimentão'),
+      },
+    },
+    Vehicle: {
+      label: 'Veículo', subj: x => `quem anda de ${B(x)}`,
+      items: {
+        plane: it('Avião'), motorcycle: it('Moto', 'f'), helicopter: it('Helicóptero'), train: it('Trem'),
+        bus: it('Ônibus'), car: it('Carro'), SUV: it('SUV'), boat: it('Barco'), bike: it('Bicicleta', 'f'),
+        scooter: it('Scooter', 'f'),
+      },
+    },
+  };
+  // categoria nova que ainda não esteja no dicionário
+  const PT_FALLBACK = name => ({ label: name, subj: x => `quem tem ${B(x)}`, items: {} });
+
+  // ---------- Utilidades ----------
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const capFirst = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // maiúscula no primeiro caractere de texto (pula tags HTML)
+  const capHtml = s => s.replace(/^((?:<[^>]+>)*)(.)/, (_, tags, ch) => tags + ch.toUpperCase());
+  const pad = n => String(n).padStart(2, '0');
+  const $ = id => document.getElementById(id);
+
+  // ---------- Montagem de um nível a partir dos dados do original ----------
+  function buildLevel(raw) {
+    const cats = raw.categorias.map((cat, c) => {
+      const pt = PT[cat.nome] || PT_FALLBACK(cat.nome);
+      const items = cat.itens.map((s, i) => {
+        const sp = s.indexOf(' ');
+        const e = s.slice(0, sp), w = s.slice(sp + 1);
+        const tr = pt.items[w] || it(capFirst(w));
+        return { key: `${c}:${i}`, raw: s.toLowerCase(), e, w, en: capFirst(w), pt: tr, css: tr.css };
+      });
+      return { name: cat.nome, label: { pt: pt.label, en: cat.nome }, house: !!pt.house, subj: pt.subj, pred: pt.pred, items };
+    });
+    return { id: raw.nivel, cats, houses: raw.solucao.length, sol: raw.solucao, clues: raw.pistas };
+  }
+
+  // ---------- Pistas em português (a partir da regra) ----------
+  const de = s => s.replace(/^o /, 'do ').replace(/^a /, 'da ').replace(/^quem /, 'de quem ');
+  const em = s => s.replace(/^o /, 'no ').replace(/^a /, 'na ');
+  const ORD = ['primeira', 'segunda', 'terceira', 'quarta', 'quinta', 'sexta'];
+
+  function ptClue(cl, lv) {
+    const [type, v] = cl.regra;
+    const ref = k => { const cat = lv.cats[v[k]]; return { cat, x: cat.items[v[k + 1]] }; };
+    const S = o => o.cat.subj(o.x);
+    const verb = o => (o.cat.house ? 'fica' : 'mora');
+    const txt = cl.texto.toLowerCase();
+    const first = (a, b) => txt.indexOf(a.x.raw) <= txt.indexOf(b.x.raw); // a aparece antes no texto original?
+    const H = lv.houses;
+    let A, Bb, C;
+    switch (type) {
+      case 0: { // mesma casa
+        A = ref(0); Bb = ref(2);
+        if (!first(A, Bb)) [A, Bb] = [Bb, A];
+        if (A.cat.house && !Bb.cat.house) [A, Bb] = [Bb, A];
+        if (!A.cat.house && Bb.cat.house) return `${S(A)} mora ${em(S(Bb))}.`;
+        if (A.cat.house && Bb.cat.house) return `${S(A)} ${Bb.cat.pred(Bb.x)}.`;
+        return `${S(A)} é ${S(Bb)}.`;
+      }
+      case 1: // B imediatamente à direita de A
+        A = ref(0); Bb = ref(2);
+        return first(Bb, A)
+          ? `${S(Bb)} ${verb(Bb)} imediatamente à direita ${de(S(A))}.`
+          : `${S(A)} ${verb(A)} imediatamente à esquerda ${de(S(Bb))}.`;
+      case 2: { // posição
+        A = ref(0);
+        const n = v[2];
+        const where = n === H - 1 ? 'última casa' : `${ORD[n]} casa`;
+        return A.cat.house ? `${S(A)} é a ${where}.` : `${S(A)} mora na ${where}.`;
+      }
+      case 3: // vizinhos
+        A = ref(0); Bb = ref(2);
+        if (!first(A, Bb)) [A, Bb] = [Bb, A];
+        return `${S(A)} ${verb(A)} ao lado ${de(S(Bb))}.`;
+      case 5: // A em algum lugar à esquerda de B
+        A = ref(0); Bb = ref(2);
+        return first(Bb, A)
+          ? `${S(Bb)} ${verb(Bb)} em algum lugar à direita ${de(S(A))}.`
+          : `${S(A)} ${verb(A)} em algum lugar à esquerda ${de(S(Bb))}.`;
+      case 6: // numa das pontas
+        A = ref(0);
+        return `${S(A)} ${verb(A)} em uma das pontas.`;
+      case 7: // A entre B e C, nessa ordem
+        A = ref(0); Bb = ref(2); C = ref(4);
+        return `${S(A)} ${verb(A)} em algum lugar entre ${S(Bb)} e ${S(C)}, nessa ordem.`;
+    }
+    return null; // tipo de regra desconhecido: mostra o texto original
+  }
+
+  // texto original: cada **item** vira um destaque ligado ao item do tabuleiro
+  const enClue = (cl, lv) => esc(cl.texto).replace(/\*\*(.+?)\*\*/g, (_, t) => {
+    const raw = t.replace(/&amp;/g, '&').toLowerCase();
+    const x = lv.cats.flatMap(c => c.items).find(x => x.raw === raw);
+    return x ? `<span class="chip" data-k="${x.key}">${t}</span>` : `<b>${t}</b>`;
+  });
+  const clueHtml = (cl, lv) => {
+    if (lang === 'pt') { const s = ptClue(cl, lv); if (s) return capHtml(s); }
+    return enClue(cl, lv);
+  };
+
+  // ---------- Estado de cada pista (mesma regra do original) ----------
+  //  1 = todos os itens citados estão no tabuleiro e a pista é cumprida (verde, riscada)
+  // -1 = a pista já não tem como ser cumprida com o tabuleiro atual (vermelha)
+  //  0 = ainda indefinida
+  const REFS = { 0: 2, 1: 2, 2: 1, 3: 2, 5: 2, 6: 1, 7: 3 };
+  function clueHolds(type, v, p, H) {
+    switch (type) {
+      case 0: return p[0] === p[1];
+      case 1: return p[1] === p[0] + 1;
+      case 2: return p[0] === v[2];
+      case 3: return Math.abs(p[0] - p[1]) === 1;
+      case 5: return p[0] < p[1];
+      case 6: return p[0] === 0 || p[0] === H - 1;
+      case 7: return p[1] < p[0] && p[0] < p[2];
+    }
+  }
+  function clueState(cl, lv, grid) {
+    const [type, v] = cl.regra;
+    const n = REFS[type];
+    if (!n) return 0;
+    const H = lv.houses;
+    const refs = [];
+    for (let k = 0; k < n; k++) refs.push([v[2 * k], v[2 * k + 1]]);
+    // casas possíveis de cada item: onde já está, ou qualquer casa com a vaga livre
+    const opts = refs.map(([c, i]) => {
+      const h = grid.findIndex(row => row[c] === i);
+      return h >= 0 ? [h] : grid.map((row, hh) => (row[c] === null ? hh : -1)).filter(hh => hh >= 0);
+    });
+    const isPlaced = refs.map(([c, i], k) => opts[k].length === 1 && grid[opts[k][0]][c] === i);
+    if (isPlaced.every(Boolean)) return clueHolds(type, v, opts.map(o => o[0]), H) ? 1 : -1;
+    // como no original: sem nenhum item colocado, pistas de dois itens ficam neutras e
+    // "entre ... nessa ordem" só fica vermelha se o item do meio não puder sair das pontas
+    if (!isPlaced.some(Boolean)) {
+      if (n === 2) return 0;
+      if (type === 7) return opts[0].some(h => h > 0 && h < H - 1) ? 0 : -1;
+    }
+    const p = [];
+    const possible = (function rec(k) {
+      if (k === n) return clueHolds(type, v, p, H);
+      for (const h of opts[k]) {
+        // dois itens da mesma categoria não podem ocupar a mesma casa
+        if (refs.some((r, j) => j < k && r[0] === refs[k][0] && p[j] === h)) continue;
+        p[k] = h;
+        if (rec(k + 1)) return true;
+      }
+      return false;
+    })(0);
+    return possible ? 0 : -1;
+  }
+
+  const ICONS = {
+    '0': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="box"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>',
+    '1': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.5"/><path d="m9 11 3 3L22 4"/></svg>',
+    '-1': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m15 9-6 6M9 9l6 6"/></svg>',
+  };
+
+  // ---------- Dados ----------
+  const DATAS = (window.DATAS || []).slice().sort();
+  window.PACKS = window.PACKS || {};
+  function loadPack(date, cb) {
+    if (PACKS[date]) return cb(PACKS[date]);
+    const s = document.createElement('script');
+    s.src = `dados/${date}.js`;
+    s.onload = () => cb(PACKS[date] || null);
+    s.onerror = () => cb(null);
+    document.head.appendChild(s);
+  }
+
+  // ---------- Estado ----------
+  const store = {
+    load(k) { try { return JSON.parse(localStorage.getItem('einstein:' + k)); } catch { return null; } },
+    save(k, v) { try { localStorage.setItem('einstein:' + k, JSON.stringify(v)); } catch {} },
+  };
+  let lang = store.load('idioma') || 'pt';
+  let dateKey, pack, level, state, ready = false;
+  const T = () => UI[lang];
+  const stateKey = () => `${dateKey}:${level.id}`;
+  const fmtDate = k => { const [y, m, d] = k.split('-').map(Number);
+    return capFirst(new Date(y, m - 1, d).toLocaleDateString(T().locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })); };
+
+  // hash: #AAAA-MM-DD/nivel
+  function parseHash() {
+    const [d, l] = decodeURIComponent(location.hash.slice(1)).split('/');
+    const date = DATAS.includes(d) ? d : DATAS[DATAS.length - 1];
+    return { date, levelId: l || store.load('nivel') || 'very-easy' };
+  }
+  const go = (d, lid) => { location.hash = `${d}/${lid}`; };
+
+  function load() {
+    if (!DATAS.length) return showEmpty(T().noData);
+    const { date, levelId } = parseHash();
+    loadPack(date, p => {
+      if (!p) return showEmpty(esc(T().noDay(date)));
+      dateKey = date; pack = p;
+      const raw = p.niveis.find(n => n.nivel === levelId) || p.niveis[0];
+      level = buildLevel(raw);
+      store.save('nivel', level.id);
+      const C = level.cats.length, H = level.houses;
+      state = store.load(stateKey()) || {
+        grid: Array.from({ length: H }, () => Array(C).fill(null)),
+        elapsed: 0, solved: false, revealed: false,
+      };
+      ready = true;
+      $('game').hidden = false; $('empty').hidden = true;
+      render();
+    });
+  }
+
+  function showEmpty(html) {
+    ready = false;
+    $('game').hidden = true;
+    $('empty').hidden = false;
+    $('empty').innerHTML = html;
+    renderChrome();
+  }
+
+  function save() { if (ready) store.save(stateKey(), state); }
+
+  // ---------- Render ----------
+  function renderChrome() {
+    const t = T();
+    document.documentElement.lang = t.locale;
+    document.title = t.title;
+    $('title').textContent = pack ? `${t.title} #${pack.num}` : t.title;
+    $('date').textContent = dateKey ? fmtDate(dateKey) : '';
+    $('prev').textContent = t.prev; $('latest').textContent = t.latest; $('next').textContent = t.next;
+    const i = DATAS.indexOf(dateKey);
+    $('prev').disabled = i <= 0;
+    $('next').disabled = i < 0 || i >= DATAS.length - 1;
+    $('latest').disabled = i === DATAS.length - 1;
+    document.querySelectorAll('.lang button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+    $('lblTime').textContent = t.time; $('lblNew').textContent = t.newIn;
+    $('lblClues').textContent = t.clues; $('lblHint').textContent = t.hint;
+    $('check').textContent = t.check; $('clear').textContent = t.clear; $('reveal').textContent = t.reveal;
+    $('lblHow').textContent = t.how; $('how').innerHTML = t.howHtml;
+  }
+
+  function render() {
+    renderChrome();
+    renderLevels();
+    renderBoard();
+    renderClues();
+    hideMsg();
+    if (state.solved) showMsg('ok', T().solvedShort(fmt(state.elapsed)));
+    else if (state.revealed) showMsg('info', T().revealed);
+    tick(false);
+  }
+
+  function renderLevels() {
+    const box = $('levels');
+    box.innerHTML = '';
+    for (const raw of pack.niveis) {
+      const b = document.createElement('button');
+      const s = store.load(`${dateKey}:${raw.nivel}`);
+      const name = T().levels[raw.nivel] || raw.nivel;
+      b.innerHTML = `${s && s.solved ? '✅ ' : ''}${esc(name)}<span class="size">${raw.solucao.length}×${raw.categorias.length}</span>`;
+      if (raw.nivel === level.id) b.classList.add('active');
+      b.onclick = () => { save(); go(dateKey, raw.nivel); };
+      box.appendChild(b);
+    }
+  }
+
+  function renderBoard() {
+    const board = $('board');
+    board.innerHTML = '';
+    for (let h = 0; h < level.houses; h++) {
+      const card = document.createElement('div');
+      card.className = 'house';
+      card.innerHTML = `<h3>🏠 ${T().house} ${h + 1}</h3>`;
+      level.cats.forEach((cat, c) => {
+        const lab = document.createElement('label');
+        lab.textContent = cat.label[lang];
+        const sel = document.createElement('select');
+        sel.dataset.h = h; sel.dataset.c = c;
+        sel.addEventListener('change', onSelect);
+        lab.appendChild(sel);
+        card.appendChild(lab);
+      });
+      board.appendChild(card);
+    }
+    refreshSelects();
+  }
+
+  const itemName = x => (lang === 'pt' ? x.pt.n : x.en);
+
+  function refreshSelects() {
+    const locked = state.solved || state.revealed;
+    document.querySelectorAll('#board select').forEach(sel => {
+      const h = +sel.dataset.h, c = +sel.dataset.c;
+      const cur = state.grid[h][c];
+      const used = new Set(state.grid.map(r => r[c]).filter((v, hh) => v !== null && hh !== h));
+      sel.innerHTML = '<option value="">—</option>';
+      level.cats[c].items
+        .map((x, i) => ({ x, i }))
+        .sort((p, q) => itemName(p.x).localeCompare(itemName(q.x), T().locale))
+        .forEach(({ x, i }) => {
+          if (used.has(i)) return;
+          const o = document.createElement('option');
+          o.value = i; o.textContent = `${x.e} ${itemName(x)}`;
+          if (i === cur) o.selected = true;
+          sel.appendChild(o);
+        });
+      sel.disabled = locked;
+      sel.classList.remove('wrong', 'right');
+    });
+    // tinge o topo do cartão com a cor da casa
+    const ci = level.cats.findIndex(c => c.name === 'Color');
+    document.querySelectorAll('#board .house').forEach((card, h) => {
+      const v = ci < 0 ? null : state.grid[h][ci];
+      card.style.borderTopColor = v === null ? '' : level.cats[ci].items[v].css || '';
+    });
+  }
+
+  function onSelect(e) {
+    const h = +e.target.dataset.h, c = +e.target.dataset.c;
+    state.grid[h][c] = e.target.value === '' ? null : +e.target.value;
+    save();
+    hideMsg();
+    refreshSelects();
+    updateClueStates();
+    // como no original, o enigma é dado como resolvido assim que o tabuleiro fica certo
+    if (state.grid.every((row, h) => row.every((v, c) => v === level.sol[h][c]))) check();
+  }
+
+  function renderClues() {
+    const ul = $('clues');
+    ul.innerHTML = '';
+    level.clues.forEach(cl => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="ico"></span><span>${clueHtml(cl, level)}</span>`;
+      ul.appendChild(li);
+    });
+    updateClueStates();
+  }
+
+  function updateClueStates() {
+    const lis = $('clues').children;
+    level.clues.forEach((cl, k) => {
+      const s = clueState(cl, level, state.grid);
+      const li = lis[k];
+      if (li.dataset.s === String(s)) return;
+      li.dataset.s = s;
+      li.classList.toggle('ok', s === 1);
+      li.classList.toggle('bad', s === -1);
+      li.firstChild.innerHTML = ICONS[s];
+    });
+  }
+
+  // passar o mouse num item destaca todas as pistas que o citam
+  function highlight(key) {
+    document.querySelectorAll('#clues .chip').forEach(ch => ch.classList.toggle('on', ch.dataset.k === key));
+    document.querySelectorAll('#clues li').forEach(li =>
+      li.classList.toggle('hl', !!key && !!li.querySelector(`.chip[data-k="${key}"]`)));
+  }
+  $('clues').addEventListener('mouseover', e => { const ch = e.target.closest('.chip'); highlight(ch ? ch.dataset.k : null); });
+  $('clues').addEventListener('mouseleave', () => highlight(null));
+
+  // ---------- Ações ----------
+  function check() {
+    if (!ready || state.solved || state.revealed) return;
+    let empty = 0, wrong = 0;
+    state.grid.forEach((row, h) => row.forEach((v, c) => {
+      if (v === null) empty++;
+      else if (v !== level.sol[h][c]) wrong++;
+    }));
+    if (empty) return showMsg('bad', T().missing(empty));
+    if (wrong) {
+      document.querySelectorAll('#board select').forEach(sel => {
+        const h = +sel.dataset.h, c = +sel.dataset.c;
+        sel.classList.add(state.grid[h][c] === level.sol[h][c] ? 'right' : 'wrong');
+      });
+      return showMsg('bad', T().wrong(wrong));
+    }
+    state.solved = true;
+    save();
+    refreshSelects();
+    renderLevels();
+    showMsg('ok', T().solved(T().levels[level.id] || level.id, fmt(state.elapsed)));
+  }
+
+  function clearAll() {
+    if (!ready || state.solved || state.revealed) return;
+    state.grid = state.grid.map(r => r.map(() => null));
+    save();
+    hideMsg();
+    refreshSelects();
+    updateClueStates();
+  }
+
+  let revealArmed = false;
+  function reveal() {
+    if (!ready || state.solved || state.revealed) return;
+    if (!revealArmed) {
+      revealArmed = true;
+      $('reveal').textContent = T().revealSure;
+      setTimeout(() => { revealArmed = false; $('reveal').textContent = T().reveal; }, 3000);
+      return;
+    }
+    revealArmed = false;
+    $('reveal').textContent = T().reveal;
+    state.grid = level.sol.map(r => r.slice());
+    state.revealed = true;
+    save();
+    refreshSelects();
+    updateClueStates();
+    showMsg('info', T().revealed);
+  }
+
+  function showMsg(kind, text) { const m = $('msg'); m.className = `msg show ${kind}`; m.textContent = text; }
+  function hideMsg() { $('msg').className = 'msg'; }
+
+  const fmt = s => { const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+    return (h ? h + ':' + pad(m) : pad(m)) + ':' + pad(ss); };
+
+  // o original publica os enigmas novos todo dia às 13:00 UTC
+  function tick(count = true) {
+    if (ready && count && !state.solved && !state.revealed && !document.hidden) {
+      state.elapsed++;
+      if (state.elapsed % 5 === 0) save();
+    }
+    if (ready) $('timer').textContent = fmt(state.elapsed);
+    const now = new Date();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 13));
+    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+    const left = Math.floor((next - now) / 1000);
+    $('countdown').textContent = `${pad(Math.floor(left / 3600))}:${pad(Math.floor(left / 60) % 60)}:${pad(left % 60)}`;
+  }
+
+  // ---------- Eventos ----------
+  const step = d => { const i = DATAS.indexOf(dateKey) + d; if (DATAS[i]) { save(); go(DATAS[i], level.id); } };
+  $('prev').onclick = () => step(-1);
+  $('next').onclick = () => step(1);
+  $('latest').onclick = () => { save(); go(DATAS[DATAS.length - 1], level ? level.id : 'very-easy'); };
+  document.querySelectorAll('.lang button').forEach(b => b.onclick = () => {
+    lang = b.dataset.lang;
+    store.save('idioma', lang);
+    ready ? render() : load();
+  });
+  $('check').onclick = check;
+  $('clear').onclick = clearAll;
+  $('reveal').onclick = reveal;
+  window.addEventListener('hashchange', () => { save(); load(); });
+
+  load();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

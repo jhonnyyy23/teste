@@ -485,7 +485,7 @@
   };
 
   // ---------- Dados ----------
-  const DATAS = (window.DATAS || []).slice().sort();
+  const DATAS = (window.DATAS || []).filter(Boolean).sort();
   window.PACKS = window.PACKS || {};
   function loadPack(date, cb) {
     if (PACKS[date]) return cb(PACKS[date]);

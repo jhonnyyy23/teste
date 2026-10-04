@@ -65,20 +65,30 @@ else {
   $lista = 0..$Dias | ForEach-Object { $hoje.AddDays(-$_).ToString('yyyy-MM-dd') }
 }
 
+$tentativas = 0; $sucessos = 0
 foreach ($dia in $lista) {
   $arq = Join-Path $Saida "$dia.js"
   if ((Test-Path $arq) -and -not $Data) { continue }
+  $tentativas++
   try {
     $pack = Get-Pack $dia
     $js = "(window.PACKS = window.PACKS || {})['$dia'] = " + $ser.Serialize($pack) + ";`n"
     [IO.File]::WriteAllText($arq, $js, $utf8)
     Write-Host "OK  $dia  (#$($pack.num))"
+    $sucessos++
   } catch {
     Write-Host "--  $dia  não disponível: $($_.Exception.Message)"
   }
 }
 
 # índice com as datas disponíveis (o navegador não consegue listar a pasta sozinho)
-$datas = [string[]](Get-ChildItem $Saida -Filter '????-??-??.js' | ForEach-Object { [string]$_.BaseName } | Sort-Object)
-[IO.File]::WriteAllText((Join-Path $Saida 'indice.js'), 'window.DATAS = ' + $ser.Serialize(@($datas)) + ";`n", $utf8)
+$datas = @(Get-ChildItem $Saida -Filter '????-??-??.js' | ForEach-Object { [string]$_.BaseName } | Sort-Object)
+$lista = '[' + (($datas | ForEach-Object { '"' + $_ + '"' }) -join ',') + ']'
+[IO.File]::WriteAllText((Join-Path $Saida 'indice.js'), "window.DATAS = $lista;`n", $utf8)
 Write-Host "$($datas.Count) dia(s) disponíveis em $Saida"
+
+# nenhum download funcionou (ex.: site fora do ar ou bloqueando o acesso): sinaliza erro
+if ($tentativas -gt 1 -and $sucessos -eq 0) {
+  Write-Host 'ERRO: nenhum enigma pôde ser baixado.'
+  exit 1
+}

@@ -88,6 +88,27 @@
   details { margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px; }
   summary { cursor: pointer; font-weight: 600; }
   details p, details li { color: var(--muted); }
+  /* ranking */
+  .rank { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-top: 18px; }
+  .rank h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .rank ol { margin: 0; padding: 0; list-style: none; }
+  .rank li { display: flex; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .rank li:last-child { border-bottom: 0; }
+  .rank li.me { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 6px; }
+  .rank .pos { width: 2.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rank .nome { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank .tempo { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .rank .vazio { color: var(--muted); }
+  .modal { position: fixed; inset: 0; background: rgb(0 0 0 / .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal form { background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 20px; width: min(380px, 100%); }
+  .modal h3 { margin: 0 0 6px; }
+  .modal p { margin: 0 0 12px; color: var(--muted); }
+  .modal input {
+    width: 100%; font: inherit; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  .modal .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .modal .err { color: var(--bad); margin: 8px 0 0; }
 </style>
 <!-- carrega sempre a lista mais recente de enigmas (sem cache do navegador) -->
 <script>document.write('<script src="dados/indice.js?v=' + Date.now() + '"><\/script>');</script>
@@ -128,8 +149,25 @@
       <button id="reveal"></button>
     </div>
     <div class="msg" id="msg"></div>
+    <div class="rank" id="rank" hidden>
+      <h2 id="lblRank"></h2>
+      <ol id="rankList"></ol>
+    </div>
   </div>
   <div class="empty" id="empty" hidden></div>
+
+  <div class="modal" id="nameModal" hidden>
+    <form id="nameForm">
+      <h3 id="lblModalTitle"></h3>
+      <p id="lblModalText"></p>
+      <input id="nameInput" maxlength="20" autocomplete="nickname" required>
+      <p class="err" id="nameErr" hidden></p>
+      <div class="row">
+        <button type="button" id="nameSkip"></button>
+        <button type="submit" class="primary" id="nameSave"></button>
+      </div>
+    </form>
+  </div>
 
   <details>
     <summary id="lblHow"></summary>
@@ -150,6 +188,10 @@
       wrong: n => `Quase! ${n} ${n === 1 ? 'item está' : 'itens estão'} no lugar errado (marcados em vermelho).`,
       solved: (lv, t) => `🎉 Parabéns! Você resolveu o nível ${lv} em ${t}.`,
       solvedShort: t => `🎉 Resolvido em ${t}!`,
+      rank: lv => `🏆 Ranking — ${lv}`, rankEmpty: 'Ninguém resolveu este nível ainda. Seja o primeiro!',
+      rankError: 'Não foi possível carregar o ranking.',
+      modalTitle: '🎉 Você resolveu!', modalText: (lv, t) => `Nível ${lv} em ${t}. Qual nome devo colocar no ranking?`,
+      save: 'Salvar', skip: 'Agora não', saveError: 'Não foi possível salvar. Tente de novo.',
       revealed: 'Solução revelada.',
       noDay: d => `Os enigmas de ${d} ainda não foram baixados.`,
       noData: `<b>Nenhum enigma baixado ainda.</b><p>Clique com o botão direito em <code>atualizar.ps1</code> (na pasta do jogo) e escolha “Executar com o PowerShell”. Depois recarregue esta página.</p>`,
@@ -172,6 +214,10 @@
       wrong: n => `Almost! ${n} ${n === 1 ? 'item is' : 'items are'} in the wrong place (marked in red).`,
       solved: (lv, t) => `🎉 Congratulations! You solved the ${lv} riddle in ${t}.`,
       solvedShort: t => `🎉 Solved in ${t}!`,
+      rank: lv => `🏆 Leaderboard — ${lv}`, rankEmpty: 'Nobody has solved this level yet. Be the first!',
+      rankError: 'Could not load the leaderboard.',
+      modalTitle: '🎉 You solved it!', modalText: (lv, t) => `${lv} in ${t}. What name should go on the leaderboard?`,
+      save: 'Save', skip: 'Not now', saveError: 'Could not save. Please try again.',
       revealed: 'Solution revealed.',
       noDay: d => `The riddles for ${d} have not been downloaded yet.`,
       noData: `<b>No riddles downloaded yet.</b><p>Right-click <code>atualizar.ps1</code> (in the game folder) and choose “Run with PowerShell”. Then reload this page.</p>`,
@@ -485,6 +531,79 @@
     '-1': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m15 9-6 6M9 9l6 6"/></svg>',
   };
 
+  // ---------- Ranking (Supabase) ----------
+  // Preencha com os dados do seu projeto (Supabase → Project Settings → API).
+  // Enquanto estiverem vazios, o ranking fica escondido.
+  const SUPABASE_URL = '';
+  const SUPABASE_KEY = '';
+  const rankOn = !!(SUPABASE_URL && SUPABASE_KEY);
+  const sbHeaders = () => {
+    const h = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+    if (!SUPABASE_KEY.startsWith('sb_')) h.Authorization = `Bearer ${SUPABASE_KEY}`; // chave "anon" antiga
+    return h;
+  };
+  let rankReq = 0;
+
+  async function loadRank() {
+    if (!rankOn || !ready) return;
+    const box = $('rank'), list = $('rankList');
+    box.hidden = false;
+    $('lblRank').textContent = T().rank(T().levels[level.id] || level.id);
+    const req = ++rankReq, d = dateKey, lv = level.id;
+    try {
+      const q = `data=eq.${d}&nivel=eq.${encodeURIComponent(lv)}&select=id,nome,tempo&order=tempo.asc,criado_em.asc&limit=10`;
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/ranking?${q}`, { headers: sbHeaders() });
+      if (!r.ok) throw new Error(r.status);
+      const rows = await r.json();
+      if (req !== rankReq) return; // o jogador já trocou de nível/dia
+      list.innerHTML = rows.length
+        ? rows.map((x, i) => `<li${x.id === state.rankId ? ' class="me"' : ''}><span class="pos">${['🥇', '🥈', '🥉'][i] || i + 1 + 'º'}</span><span class="nome">${esc(x.nome)}</span><span class="tempo">${fmt(x.tempo)}</span></li>`).join('')
+        : `<li class="vazio">${esc(T().rankEmpty)}</li>`;
+    } catch {
+      if (req === rankReq) list.innerHTML = `<li class="vazio">${esc(T().rankError)}</li>`;
+    }
+  }
+
+  // pede o nome ao terminar um nível (uma vez por nível/dia, e só se não revelou a solução)
+  function askName() {
+    if (!rankOn || state.revealed || state.rankId) return;
+    const t = T();
+    $('lblModalTitle').textContent = t.modalTitle;
+    $('lblModalText').textContent = t.modalText(t.levels[level.id] || level.id, fmt(state.elapsed));
+    $('nameSave').textContent = t.save; $('nameSkip').textContent = t.skip;
+    $('nameErr').hidden = true;
+    $('nameInput').value = store.load('nome') || '';
+    $('nameModal').hidden = false;
+    $('nameInput').focus();
+  }
+
+  $('nameSkip').onclick = () => { $('nameModal').hidden = true; };
+  $('nameForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const nome = $('nameInput').value.trim().slice(0, 20);
+    if (!nome) return;
+    $('nameSave').disabled = true;
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/ranking?select=id`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), Prefer: 'return=representation' },
+        body: JSON.stringify({ data: dateKey, nivel: level.id, nome, tempo: Math.max(1, state.elapsed) }),
+      });
+      if (!r.ok) throw new Error(r.status);
+      const [row] = await r.json();
+      store.save('nome', nome);
+      state.rankId = row.id;
+      save();
+      $('nameModal').hidden = true;
+      loadRank();
+    } catch {
+      $('nameErr').textContent = T().saveError;
+      $('nameErr').hidden = false;
+    } finally {
+      $('nameSave').disabled = false;
+    }
+  });
+
   // ---------- Dados ----------
   const DATAS = (window.DATAS || []).filter(Boolean).sort();
   window.PACKS = window.PACKS || {};
@@ -575,6 +694,7 @@
     if (state.solved) showMsg('ok', T().solvedShort(fmt(state.elapsed)));
     else if (state.revealed) showMsg('info', T().revealed);
     tick(false);
+    loadRank();
   }
 
   function renderLevels() {
@@ -707,6 +827,7 @@
     refreshSelects();
     renderLevels();
     showMsg('ok', T().solved(T().levels[level.id] || level.id, fmt(state.elapsed)));
+    askName();
   }
 
   function clearAll() {

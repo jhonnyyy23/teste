@@ -89,7 +89,8 @@
   summary { cursor: pointer; font-weight: 600; }
   details p, details li { color: var(--muted); }
 </style>
-<script src="dados/indice.js"></script>
+<!-- carrega sempre a lista mais recente de enigmas (sem cache do navegador) -->
+<script>document.write('<script src="dados/indice.js?v=' + Date.now() + '"><\/script>');</script>
 </head>
 <body>
 <div class="wrap">

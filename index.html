@@ -85,6 +85,9 @@
   .msg.info { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
   .empty { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 18px; }
   .empty code { background: var(--bg); padding: 2px 6px; border-radius: 6px; }
+  .games { display: flex; gap: 6px; margin-bottom: 14px; }
+  .games a { text-decoration: none; color: var(--muted); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); }
+  .games a.on { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
   details { margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px; }
   summary { cursor: pointer; font-weight: 600; }
   details p, details li { color: var(--muted); }
@@ -116,6 +119,10 @@
 </head>
 <body>
 <div class="wrap">
+  <nav class="games">
+    <a href="index.html" class="on">🧩 <span id="navEnigma"></span></a>
+    <a href="tempo.html">⏱️ <span id="navTempo"></span></a>
+  </nav>
   <header>
     <div>
       <h1 id="title"></h1>
@@ -672,6 +679,7 @@
     document.documentElement.lang = t.locale;
     document.title = t.title;
     $('title').textContent = pack ? `${t.title} #${pack.num}` : t.title;
+    $('navEnigma').textContent = t.locale === 'pt-BR' ? 'Enigma' : 'Riddle'; $('navTempo').textContent = t.locale === 'pt-BR' ? 'Tempo' : 'Time';
     $('date').textContent = dateKey ? fmtDate(dateKey) : '';
     $('prev').textContent = t.prev; $('latest').textContent = t.latest; $('next').textContent = t.next;
     const i = DATAS.indexOf(dateKey);

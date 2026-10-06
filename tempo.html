@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tempo</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1f2328; --muted: #6b6f76;
+    --line: #e2ded5; --accent: #2f6fde; --ok: #1f9d55; --bad: #d64545;
+    --stage: #0b0c10; --stage-ink: #f2f3f5; --glow: #8b7bff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c; --card: #1f2227; --ink: #e8e9eb; --muted: #9aa0a8;
+      --line: #33373e; --accent: #6c9cff; --ok: #3ecf7a; --bad: #ff6b6b;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  .games { display: flex; gap: 6px; margin-bottom: 14px; }
+  .games a { text-decoration: none; color: var(--muted); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); }
+  .games a.on { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); border-radius: 8px; padding: 8px 16px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary, button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .lang { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .lang button { border: 0; border-radius: 0; padding: 7px 10px; }
+
+  /* palco do jogo */
+  .stage {
+    position: relative; margin-top: 18px; background: var(--stage); color: var(--stage-ink);
+    border-radius: 20px; padding: 26px 24px; min-height: 520px; overflow: hidden;
+    display: flex; flex-direction: column; user-select: none; -webkit-user-select: none;
+  }
+  .stage h2 { font-size: 2.6rem; line-height: 1; margin: 0 0 14px; letter-spacing: -.02em; }
+  .stage p { color: #b9bcc4; margin: 0 0 10px; font-size: 1.05rem; }
+  .stage .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 28px; }
+  .dots { display: flex; gap: 6px; }
+  .dots span { width: 10px; height: 10px; border-radius: 50%; background: #2c2f38; }
+  .dots span.done { background: var(--glow); }
+  .dots span.now { background: #fff; }
+  .phase { color: #b9bcc4; font-size: .95rem; }
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
+  .orb {
+    width: min(240px, 60vw); aspect-ratio: 1; border-radius: 50%; border: 2px solid #2c2f38;
+    background: radial-gradient(circle at 50% 45%, #1b1d25, #101117);
+    display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 700;
+    font-variant-numeric: tabular-nums; transition: box-shadow .08s, background .08s, transform .08s;
+    touch-action: none; -webkit-touch-callout: none;
+  }
+  .orb.on {
+    background: radial-gradient(circle at 50% 45%, #c9c2ff, var(--glow) 55%, #4b3fd6);
+    box-shadow: 0 0 60px 10px color-mix(in srgb, var(--glow) 55%, transparent); color: #0b0c10;
+  }
+  .orb.input { cursor: pointer; border-color: #4a4e5c; }
+  .orb.input:hover { border-color: #8a8fa0; }
+  .orb.pressed { transform: scale(.97); }
+  .big { font-size: 3.2rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .big small { font-size: 1.2rem; color: #8a8fa0; font-weight: 600; }
+  .detail { color: #b9bcc4; font-variant-numeric: tabular-nums; }
+  .quip { color: #e8e6ff; font-style: italic; max-width: 440px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  .stage button { background: #1d1f27; color: var(--stage-ink); border-color: #2f323d; }
+  .stage button.primary { background: #fff; color: #0b0c10; border-color: #fff; }
+  .toggle { display: inline-flex; align-self: flex-start; border: 1px solid #2f323d; border-radius: 999px; overflow: hidden; }
+  .toggle button { border: 0; border-radius: 0; padding: 7px 14px; background: transparent; }
+  .toggle button.active { background: #fff; color: #0b0c10; }
+  .menu-bottom { display: flex; flex-direction: column; gap: 14px; margin-top: auto; }
+  .note { color: #8a8fa0; font-size: .9rem; }
+  table.rounds { border-collapse: collapse; font-variant-numeric: tabular-nums; color: #d6d8de; }
+  table.rounds td { padding: 4px 12px; border-bottom: 1px solid #23262f; }
+  table.rounds td:last-child { font-weight: 700; text-align: right; }
+  table.rounds tr.head td { color: #8a8fa0; font-weight: 400; font-size: .85rem; }
+
+  /* ranking */
+  .rank { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-top: 18px; }
+  .rank h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .rank ol { margin: 0; padding: 0; list-style: none; }
+  .rank li { display: flex; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .rank li:last-child { border-bottom: 0; }
+  .rank li.me { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 6px; }
+  .rank .pos { width: 2.2em; color: var(--muted); }
+  .rank .nome { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank .pts { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .rank .vazio { color: var(--muted); }
+  .modal { position: fixed; inset: 0; background: rgb(0 0 0 / .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal form { background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 20px; width: min(380px, 100%); }
+  .modal h3 { margin: 0 0 6px; }
+  .modal p { margin: 0 0 12px; color: var(--muted); }
+  .modal input { width: 100%; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .modal .err { color: var(--bad); margin: 8px 0 0; }
+  details { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p, details li { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="games">
+    <a href="index.html">🧩 <span id="navEnigma"></span></a>
+    <a href="tempo.html" class="on">⏱️ <span id="navTempo"></span></a>
+  </nav>
+  <header>
+    <div>
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <div class="lang">
+      <button data-lang="pt" title="Português">🇧🇷 PT</button>
+      <button data-lang="en" title="English">🇺🇸 EN</button>
+    </div>
+  </header>
+
+  <section class="stage" id="stage"></section>
+
+  <div class="rank" id="rank" hidden>
+    <h2 id="lblRank"></h2>
+    <ol id="rankList"></ol>
+  </div>
+
+  <details>
+    <summary id="lblHow"></summary>
+    <div id="how"></div>
+  </details>
+</div>
+
+<div class="modal" id="nameModal" hidden>
+  <form id="nameForm">
+    <h3 id="lblModalTitle"></h3>
+    <p id="lblModalText"></p>
+    <input id="nameInput" maxlength="20" autocomplete="nickname" required>
+    <p class="err" id="nameErr" hidden></p>
+    <div class="actions">
+      <button type="button" id="nameSkip"></button>
+      <button type="submit" class="primary" id="nameSave"></button>
+    </div>
+  </form>
+</div>
+
+<script>
+(() => {
+  // ---------- Regras (mesmas do original) ----------
+  const ROUNDS = 5, MAX = 50;
+  const MODES = {
+    easy: { range: [1000, 3500], k: 12, hints: true },
+    hard: { range: [500, 6000], k: 16, hints: false },
+  };
+  const r2 = ms => 1000 * Number((ms / 1000).toFixed(2)); // arredonda para centésimos de segundo
+  // nota de 0 a 10 pela razão entre o tempo feito e o tempo mostrado
+  function scoreRound(target, pick, mode) {
+    if (target <= 0 || pick <= 0) return 0;
+    const n = Math.abs(Math.log(r2(pick) / r2(target)));
+    return Math.round(100 * Math.max(0, Math.min(10, 10 * Math.exp(-MODES[mode].k * n * n)))) / 100;
+  }
+  // no difícil: uma duração curta (até 1,2 s) e as outras espalhadas em faixas até 6 s
+  function makeTargets(mode, rnd) {
+    const [a, b] = MODES[mode].range;
+    if (mode === 'easy') return Array.from({ length: ROUNDS }, () => a + rnd() * (b - a));
+    const step = (b - 1200) / (ROUNDS - 1), out = [a + rnd() * (1200 - a)];
+    for (let i = 0; i < ROUNDS - 1; i++) { const lo = 1200 + i * step; out.push(lo + rnd() * step); }
+    for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+    return out;
+  }
+
+  // ---------- Textos ----------
+  const UI = {
+    pt: {
+      locale: 'pt-BR', title: 'Tempo', subtitle: 'Quão bom é o seu relógio interno?', navEnigma: 'Enigma', navTempo: 'Tempo',
+      intro: ['Você sente o tempo passar o tempo todo. Vamos ver o quanto consegue medi-lo.',
+              'Vamos mostrar cinco durações. Depois de cada uma, você tenta recriá-la de memória.'],
+      easy: 'Fácil', hard: 'Difícil', daily: 'Desafio do dia', practice: 'Treino',
+      dailyNote: 'Mesmas 5 durações para todo mundo hoje. Uma tentativa por modo.',
+      dailyDone: s => `Você já fez o desafio de hoje neste modo: ${s}/50.`,
+      dailyStarted: 'Você já começou o desafio de hoje neste modo.',
+      round: (i) => `Rodada ${i}/${ROUNDS}`, get: 'Prepare-se…', watch: 'Observe', yourTurn: 'Sua vez',
+      holdHint: 'Segure o círculo (ou a barra de espaço) pelo mesmo tempo e solte.',
+      holding: 'Segurando…', target: 'Mostrado', you: 'Você', points: 'Pontos', next: 'Próxima', results: 'Ver resultado',
+      final: 'Resultado', total: 'Total', again: 'Treinar de novo', menu: 'Menu',
+      rank: m => `🏆 Ranking do dia — ${m}`, rankEmpty: 'Ninguém fez o desafio de hoje neste modo ainda. Seja o primeiro!',
+      rankError: 'Não foi possível carregar o ranking.',
+      modalTitle: '🎉 Desafio concluído!', modalText: (m, s) => `${m}: ${s}/50. Qual nome devo colocar no ranking?`,
+      save: 'Salvar', skip: 'Agora não', saveError: 'Não foi possível salvar. Tente de novo.',
+      how: 'Como jogar',
+      howHtml: `<ul>
+        <li>Em cada rodada o círculo acende por um certo tempo. Memorize quanto durou.</li>
+        <li>Depois, segure o círculo (ou a barra de espaço) pelo mesmo tempo e solte.</li>
+        <li>Cada rodada vale até 10 pontos, conforme a proximidade: errar 10% rende cerca de 9 pontos no fácil. Total máximo: 50.</li>
+        <li><b>Fácil</b>: durações de 1 a 3,5 s, com cronômetro enquanto você observa. <b>Difícil</b>: de 0,5 a 6 s, sem números e com pontuação mais rigorosa.</li>
+        <li>O <b>desafio do dia</b> tem as mesmas durações para todos e entra no ranking. O <b>treino</b> é ilimitado.</li>
+      </ul>`,
+      quips: [[10, 'Perfeito. Você é um cronômetro com pernas.'], [9.5, 'Precisão absurda. Suspeito, até.'],
+              [8.5, 'Muito bom. Seu relógio interno está em dia.'], [7, 'Bom. Quase lá.'],
+              [5, 'Meio caminho andado. Literalmente.'], [2.5, 'Seu relógio interno está atrasado (ou adiantado).'],
+              [0, 'O tempo é relativo… mas nem tanto.']],
+      finals: [[48, 'Inacreditável. Você deveria trabalhar na NASA.'], [42, 'Excelente! Relógio interno de respeito.'],
+               [35, 'Muito bom. Acima da média.'], [25, 'Razoável. O tempo voa, né?'], [0, 'O tempo não está do seu lado hoje.']],
+    },
+    en: {
+      locale: 'en-US', title: 'Time', subtitle: 'How good is your internal clock?', navEnigma: 'Riddle', navTempo: 'Time',
+      intro: ['You experience time constantly. Let’s see how good you are at measuring it.',
+              'We’ll show you five durations. After each one, you try to recreate it from memory.'],
+      easy: 'Easy', hard: 'Hard', daily: 'Daily challenge', practice: 'Practice',
+      dailyNote: 'Same 5 durations for everyone today. One attempt per mode.',
+      dailyDone: s => `You already played today's challenge in this mode: ${s}/50.`,
+      dailyStarted: 'You already started today’s challenge in this mode.',
+      round: (i) => `Round ${i}/${ROUNDS}`, get: 'Get ready…', watch: 'Watch', yourTurn: 'Your turn',
+      holdHint: 'Hold the circle (or the space bar) for the same time, then release.',
+      holding: 'Holding…', target: 'Shown', you: 'You', points: 'Points', next: 'Next', results: 'See result',
+      final: 'Result', total: 'Total', again: 'Practice again', menu: 'Menu',
+      rank: m => `🏆 Today's leaderboard — ${m}`, rankEmpty: 'Nobody has played today’s challenge in this mode yet. Be the first!',
+      rankError: 'Could not load the leaderboard.',
+      modalTitle: '🎉 Challenge complete!', modalText: (m, s) => `${m}: ${s}/50. What name should go on the leaderboard?`,
+      save: 'Save', skip: 'Not now', saveError: 'Could not save. Please try again.',
+      how: 'How to play',
+      howHtml: `<ul>
+        <li>Each round the circle lights up for a while. Remember how long it lasted.</li>
+        <li>Then hold the circle (or the space bar) for the same time and release.</li>
+        <li>Each round is worth up to 10 points depending on how close you get: being 10% off scores about 9 on easy. Max total: 50.</li>
+        <li><b>Easy</b>: 1 to 3.5 s, with a timer while you watch. <b>Hard</b>: 0.5 to 6 s, no numbers and stricter scoring.</li>
+        <li>The <b>daily challenge</b> has the same durations for everyone and goes on the leaderboard. <b>Practice</b> is unlimited.</li>
+      </ul>`,
+      quips: [[10, 'Perfect. You are a stopwatch with legs.'], [9.5, 'Absurdly precise. Suspicious, even.'],
+              [8.5, 'Very good. Your internal clock is on time.'], [7, 'Good. Almost there.'],
+              [5, 'Halfway there. Literally.'], [2.5, 'Your internal clock is running late (or early).'],
+              [0, 'Time is relative… but not that relative.']],
+      finals: [[48, 'Unbelievable. NASA should call you.'], [42, 'Excellent! A seriously good internal clock.'],
+               [35, 'Very good. Above average.'], [25, 'Not bad. Time flies, right?'], [0, 'Time is not on your side today.']],
+    },
+  };
+
+  // ---------- Utilidades ----------
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = {
+    load(k) { try { return JSON.parse(localStorage.getItem('einstein:' + k)); } catch { return null; } },
+    save(k, v) { try { localStorage.setItem('einstein:' + k, JSON.stringify(v)); } catch {} },
+  };
+  let lang = store.load('idioma') || 'pt';
+  const T = () => UI[lang];
+  const pad = n => String(n).padStart(2, '0');
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const secs = ms => (ms / 1000).toFixed(2) + 's';
+  const pts = v => v.toFixed(2).replace(/\.?0+$/, '') || '0';
+  const pick = (list, v) => list.find(([min]) => v >= min)[1];
+  function seeded(str) {
+    let h = 1779033703 ^ str.length;
+    for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    let a = h >>> 0;
+    return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  // ---------- Estado do jogo ----------
+  let mode = store.load('tempo:modo') || 'easy';
+  let game = null;   // { daily, date, mode, targets, picks, scores, round }
+  let phase = 'menu';
+  let timers = [];
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  const clearTimers = () => { timers.forEach(clearTimeout); timers = []; cancelAnimationFrame(raf); };
+  let raf = 0;
+  const dailyKey = (d, m) => `tempo:diario:${d}:${m}`;
+
+  // ---------- Telas ----------
+  const stage = $('stage');
+  const dots = () => `<div class="dots">${Array.from({ length: ROUNDS }, (_, i) =>
+    `<span class="${i < game.round ? 'done' : i === game.round ? 'now' : ''}"></span>`).join('')}</div>`;
+
+  function showMenu() {
+    clearTimers(); phase = 'menu'; game = null;
+    const t = T(), d = today(), rec = store.load(dailyKey(d, mode));
+    const dailyMsg = rec ? (rec.total != null ? t.dailyDone(pts(rec.total)) : t.dailyStarted) : t.dailyNote;
+    stage.innerHTML = `
+      <h2>${esc(t.title.toLowerCase())}</h2>
+      ${t.intro.map(p => `<p>${esc(p)}</p>`).join('')}
+      <div class="menu-bottom">
+        <div class="toggle">
+          <button data-mode="easy" class="${mode === 'easy' ? 'active' : ''}">${t.easy}</button>
+          <button data-mode="hard" class="${mode === 'hard' ? 'active' : ''}">${t.hard}</button>
+        </div>
+        <div class="row" style="justify-content:flex-start">
+          <button class="primary" id="btnDaily" ${rec ? 'disabled' : ''}>📅 ${t.daily}</button>
+          <button id="btnPractice">🔁 ${t.practice}</button>
+        </div>
+        <div class="note">${esc(dailyMsg)}</div>
+      </div>`;
+    stage.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { mode = b.dataset.mode; store.save('tempo:modo', mode); showMenu(); loadRank(); });
+    $('btnDaily').onclick = () => start(true);
+    $('btnPractice').onclick = () => start(false);
+    loadRank();
+  }
+
+  function start(daily) {
+    const d = today();
+    if (daily) {
+      if (store.load(dailyKey(d, mode))) return showMenu();
+      store.save(dailyKey(d, mode), { total: null }); // a tentativa conta a partir daqui
+    }
+    const rnd = daily ? seeded(`tempo:${d}:${mode}`) : Math.random;
+    game = { daily, date: d, mode, targets: makeTargets(mode, rnd), picks: [], scores: [], round: 0 };
+    countdown();
+  }
+
+  function frame(phaseText, inner) {
+    const t = T();
+    stage.innerHTML = `
+      <div class="top"><span class="phase">${esc(t.round(game.round + 1))} · ${esc(phaseText)}</span>${dots()}</div>
+      <div class="center">${inner}</div>`;
+  }
+
+  function countdown() {
+    clearTimers(); phase = 'countdown';
+    frame(T().get, `<div class="orb" id="orb">3</div><p>${esc(T().watch)}</p>`);
+    later(() => { $('orb').textContent = '2'; }, 600);
+    later(() => { $('orb').textContent = '1'; }, 1200);
+    later(watch, 1800);
+  }
+
+  function watch() {
+    phase = 'watch';
+    const target = game.targets[game.round], hints = MODES[game.mode].hints;
+    frame(T().watch, `<div class="orb on" id="orb">${hints ? '0.00' : ''}</div><p>&nbsp;</p>`);
+    const orb = $('orb'), t0 = performance.now();
+    // o fim é marcado por temporizador (preciso mesmo se a animação travar); a animação só atualiza o cronômetro
+    later(() => {
+      cancelAnimationFrame(raf);
+      orb.classList.remove('on');
+      orb.textContent = hints ? (target / 1000).toFixed(2) : '';
+      later(holdPhase, 700);
+    }, target);
+    if (hints) {
+      const step = now => { orb.textContent = (Math.min(now - t0, target) / 1000).toFixed(2); raf = requestAnimationFrame(step); };
+      raf = requestAnimationFrame(step);
+    }
+  }
+
+  let pressStart = 0, armed = false;
+  function holdPhase() {
+    phase = 'hold'; armed = false;
+    frame(T().yourTurn, `<div class="orb input" id="orb"></div><p>${esc(T().holdHint)}</p>`);
+    const orb = $('orb');
+    orb.addEventListener('pointerdown', e => { e.preventDefault(); orb.setPointerCapture(e.pointerId); press(); });
+    orb.addEventListener('pointerup', release);
+    orb.addEventListener('pointercancel', release);
+    orb.addEventListener('contextmenu', e => e.preventDefault());
+    later(() => { armed = true; }, 250); // evita contar um clique que sobrou da tela anterior
+  }
+  function press() {
+    if (phase !== 'hold' || !armed || pressStart) return;
+    pressStart = performance.now();
+    const orb = $('orb');
+    orb.classList.add('on', 'pressed');
+    stage.querySelector('.center p').textContent = T().holding;
+  }
+  function release() {
+    if (phase !== 'hold' || !pressStart) return;
+    const dur = performance.now() - pressStart;
+    pressStart = 0;
+    const i = game.round, target = game.targets[i];
+    game.picks.push(dur);
+    game.scores.push(scoreRound(target, dur, game.mode));
+    roundResult();
+  }
+
+  function roundResult() {
+    phase = 'result';
+    const t = T(), i = game.round, target = game.targets[i], dur = game.picks[i], sc = game.scores[i];
+    const delta = (dur - target) / 1000, last = i === ROUNDS - 1;
+    frame(t.yourTurn, `
+      <div class="big">${pts(sc)}<small>/10</small></div>
+      <div class="detail">${esc(t.target)} ${secs(r2(target))} · ${esc(t.you)} ${secs(r2(dur))} (${delta >= 0 ? '+' : ''}${delta.toFixed(2)}s)</div>
+      <div class="quip">${esc(pick(t.quips, sc))}</div>
+      <button class="primary" id="btnNext">${last ? t.results : t.next}</button>`);
+    later(() => { phase = 'result-ready'; }, 400);
+    $('btnNext').onclick = nextRound;
+  }
+
+  function nextRound() {
+    game.round++;
+    if (game.round < ROUNDS) countdown(); else finish();
+  }
+
+  function finish() {
+    clearTimers(); phase = 'final';
+    const t = T(), total = Math.round(100 * game.scores.reduce((a, b) => a + b, 0)) / 100;
+    game.total = total;
+    if (game.daily) store.save(dailyKey(game.date, game.mode), { total });
+    stage.innerHTML = `
+      <div class="top"><span class="phase">${esc(t.final)} · ${esc(game.mode === 'easy' ? t.easy : t.hard)}${game.daily ? ' · ' + esc(t.daily) : ''}</span></div>
+      <div class="center">
+        <div class="big">${pts(total)}<small>/${MAX}</small></div>
+        <div class="quip">${esc(pick(t.finals, total))}</div>
+        <table class="rounds"><tr class="head"><td>#</td><td>${esc(t.target)}</td><td>${esc(t.you)}</td><td>${esc(t.points)}</td></tr>${game.targets.map((tg, i) =>
+          `<tr><td>${i + 1}</td><td>${secs(r2(tg))}</td><td>${secs(r2(game.picks[i]))}</td><td>${pts(game.scores[i])}</td></tr>`).join('')}</table>
+        <div class="row">
+          <button id="btnAgain">🔁 ${t.again}</button>
+          <button class="primary" id="btnMenu">${t.menu}</button>
+        </div>
+      </div>`;
+    $('btnAgain').onclick = () => start(false);
+    $('btnMenu').onclick = showMenu;
+    if (game.daily) { loadRank(); askName(); }
+  }
+
+  // barra de espaço / Enter
+  document.addEventListener('keydown', e => {
+    if (!$('nameModal').hidden) return;
+    if (e.code === 'Space' || e.code === 'Enter') {
+      if (phase === 'hold') { e.preventDefault(); if (!e.repeat) press(); }
+      else if (phase === 'result-ready') { e.preventDefault(); nextRound(); }
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space' || e.code === 'Enter') { if (phase === 'hold') { e.preventDefault(); release(); } }
+  });
+
+  // ---------- Ranking (Supabase) ----------
+  const SUPABASE_URL = 'https://pxvdzrstnvwpzjliypfi.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_GLSujtyqBQF7sXR8n66vpg_8v_lYRLT';
+  const rankOn = !!(SUPABASE_URL && SUPABASE_KEY);
+  const sbHeaders = () => {
+    const h = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+    if (!SUPABASE_KEY.startsWith('sb_')) h.Authorization = `Bearer ${SUPABASE_KEY}`;
+    return h;
+  };
+  let rankReq = 0, rankMissing = false;
+  async function loadRank() {
+    if (!rankOn) return;
+    const t = T(), d = today(), m = game ? game.mode : mode, myId = (store.load(dailyKey(d, m)) || {}).rankId;
+    $('rank').hidden = false;
+    $('lblRank').textContent = t.rank(m === 'easy' ? t.easy : t.hard);
+    const req = ++rankReq;
+    try {
+      const q = `data=eq.${d}&modo=eq.${m}&select=id,nome,pontos&order=pontos.desc,criado_em.asc&limit=10`;
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/ranking_tempo?${q}`, { headers: sbHeaders() });
+      if (r.status === 404) { rankMissing = true; $('rank').hidden = true; return; } // tabela ainda não criada no Supabase
+      if (!r.ok) throw new Error(r.status);
+      const rows = await r.json();
+      if (req !== rankReq) return;
+      $('rankList').innerHTML = rows.length
+        ? rows.map((x, i) => `<li${x.id === myId ? ' class="me"' : ''}><span class="pos">${['🥇', '🥈', '🥉'][i] || i + 1 + 'º'}</span><span class="nome">${esc(x.nome)}</span><span class="pts">${pts(Number(x.pontos))}/50</span></li>`).join('')
+        : `<li class="vazio">${esc(t.rankEmpty)}</li>`;
+    } catch {
+      if (req === rankReq) $('rankList').innerHTML = `<li class="vazio">${esc(t.rankError)}</li>`;
+    }
+  }
+
+  let pending = null; // resultado do desafio aguardando o nome
+  function askName() {
+    if (!rankOn || rankMissing) return;
+    pending = { date: game.date, mode: game.mode, total: game.total };
+    const t = T();
+    $('lblModalTitle').textContent = t.modalTitle;
+    $('lblModalText').textContent = t.modalText(game.mode === 'easy' ? t.easy : t.hard, pts(game.total));
+    $('nameSave').textContent = t.save; $('nameSkip').textContent = t.skip;
+    $('nameErr').hidden = true;
+    $('nameInput').value = store.load('nome') || '';
+    $('nameModal').hidden = false;
+    $('nameInput').focus();
+  }
+  $('nameSkip').onclick = () => { $('nameModal').hidden = true; };
+  $('nameForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const nome = $('nameInput').value.trim().slice(0, 20);
+    if (!nome || !pending) return;
+    $('nameSave').disabled = true;
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/ranking_tempo?select=id`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), Prefer: 'return=representation' },
+        body: JSON.stringify({ data: pending.date, modo: pending.mode, nome, pontos: pending.total }),
+      });
+      if (!r.ok) throw new Error(r.status);
+      const [row] = await r.json();
+      store.save('nome', nome);
+      store.save(dailyKey(pending.date, pending.mode), { total: pending.total, rankId: row.id });
+      $('nameModal').hidden = true;
+      loadRank();
+    } catch {
+      $('nameErr').textContent = T().saveError;
+      $('nameErr').hidden = false;
+    } finally {
+      $('nameSave').disabled = false;
+    }
+  });
+
+  // ---------- Idioma ----------
+  function renderChrome() {
+    const t = T();
+    document.documentElement.lang = t.locale;
+    document.title = t.title;
+    $('title').textContent = '⏱️ ' + t.title;
+    $('subtitle').textContent = t.subtitle;
+    $('navEnigma').textContent = t.navEnigma; $('navTempo').textContent = t.navTempo;
+    $('lblHow').textContent = t.how; $('how').innerHTML = t.howHtml;
+    document.querySelectorAll('.lang button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  }
+  document.querySelectorAll('.lang button').forEach(b => b.onclick = () => {
+    lang = b.dataset.lang; store.save('idioma', lang); renderChrome();
+    if (phase === 'menu') showMenu(); else loadRank();
+  });
+
+  renderChrome();
+  showMenu();
+})();
+</script>
+</body>
+</html>

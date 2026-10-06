@@ -147,7 +147,6 @@
     <div class="actions">
       <button class="primary" id="check"></button>
       <button id="clear"></button>
-      <button id="reveal"></button>
     </div>
     <div class="msg" id="msg"></div>
     <div class="rank" id="rank" hidden>
@@ -183,7 +182,7 @@
     pt: {
       locale: 'pt-BR', title: 'Enigma do Dia', prev: '◀ Anterior', latest: 'Mais recente', next: 'Próximo ▶',
       time: 'Tempo', newIn: 'Novos enigmas em', clues: 'Pistas', hint: 'As pistas são riscadas de verde quando cumpridas e ficam vermelhas quando o tabuleiro as contradiz. Passe o mouse num item para ver as pistas que o citam.',
-      check: 'Verificar', clear: 'Limpar', reveal: 'Revelar solução', revealSure: 'Tem certeza? Clique de novo',
+      check: 'Verificar', clear: 'Limpar',
       house: 'Casa', how: 'Como jogar',
       missing: n => `Ainda faltam ${n} ${n === 1 ? 'item' : 'itens'} para preencher.`,
       wrong: n => `Quase! ${n} ${n === 1 ? 'item está' : 'itens estão'} no lugar errado (marcados em vermelho).`,
@@ -209,7 +208,7 @@
     en: {
       locale: 'en-US', title: 'Daily Riddle', prev: '◀ Previous', latest: 'Latest', next: 'Next ▶',
       time: 'Time', newIn: 'New riddles in', clues: 'Clues', hint: 'Clues turn green and get crossed out when satisfied, and red when the board contradicts them. Hover an item to see every clue that mentions it.',
-      check: 'Check', clear: 'Clear', reveal: 'Reveal solution', revealSure: 'Are you sure? Click again',
+      check: 'Check', clear: 'Clear',
       house: 'House', how: 'How to play',
       missing: n => `${n} ${n === 1 ? 'item is' : 'items are'} still empty.`,
       wrong: n => `Almost! ${n} ${n === 1 ? 'item is' : 'items are'} in the wrong place (marked in red).`,
@@ -682,7 +681,7 @@
     document.querySelectorAll('.lang button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
     $('lblTime').textContent = t.time; $('lblNew').textContent = t.newIn;
     $('lblClues').textContent = t.clues; $('lblHint').textContent = t.hint;
-    $('check').textContent = t.check; $('clear').textContent = t.clear; $('reveal').textContent = t.reveal;
+    $('check').textContent = t.check; $('clear').textContent = t.clear;
     $('lblHow').textContent = t.how; $('how').innerHTML = t.howHtml;
   }
 
@@ -840,25 +839,6 @@
     updateClueStates();
   }
 
-  let revealArmed = false;
-  function reveal() {
-    if (!ready || state.solved || state.revealed) return;
-    if (!revealArmed) {
-      revealArmed = true;
-      $('reveal').textContent = T().revealSure;
-      setTimeout(() => { revealArmed = false; $('reveal').textContent = T().reveal; }, 3000);
-      return;
-    }
-    revealArmed = false;
-    $('reveal').textContent = T().reveal;
-    state.grid = level.sol.map(r => r.slice());
-    state.revealed = true;
-    save();
-    refreshSelects();
-    updateClueStates();
-    showMsg('info', T().revealed);
-  }
-
   function showMsg(kind, text) { const m = $('msg'); m.className = `msg show ${kind}`; m.textContent = text; }
   function hideMsg() { $('msg').className = 'msg'; }
 
@@ -891,7 +871,6 @@
   });
   $('check').onclick = check;
   $('clear').onclick = clearAll;
-  $('reveal').onclick = reveal;
   window.addEventListener('hashchange', () => { save(); load(); });
 
   load();

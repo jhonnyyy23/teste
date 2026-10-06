@@ -3,13 +3,14 @@
   que o index.html carrega.
 
   Uso:
-    .\atualizar.ps1                  # hoje + dias que estiverem faltando (últimos 30 dias)
-    .\atualizar.ps1 -Dias 365        # completa o último ano
-    .\atualizar.ps1 -Data 2025-01-15 # um dia específico (sobrescreve)
+    .\atualizar.ps1                  # enigma de hoje (e de ontem, se ainda faltar)
+    .\atualizar.ps1 -Data 2026-10-05 # um dia específico (sobrescreve)
+  Só o enigma do dia vem completo: dias anteriores ficam bloqueados para
+  assinantes no site original (pistas cortadas) e são recusados.
 #>
 param(
   [string]$Data,
-  [int]$Dias = 30,
+  [int]$Dias = 1,
   [string]$Saida = (Join-Path $PSScriptRoot 'dados')
 )
 $ErrorActionPreference = 'Stop'
@@ -43,6 +44,9 @@ function Get-Pack([string]$dia) {
   }
   $pack = $ser.DeserializeObject($t.Substring($i, $j - $i + 1))
   if ($pack['dateSlug'] -ne $dia) { throw "a página devolveu o dia $($pack['dateSlug'])" }
+  # dias antigos vêm "bloqueados" (só para assinantes), com parte das pistas cortada
+  $resto = $t.Substring($j + 1, [Math]::Min(400, $t.Length - $j - 1))
+  if ($resto -notmatch '"isLocked":false') { throw 'dia bloqueado no site original (pistas incompletas)' }
 
   # guarda só o necessário para o jogo
   [ordered]@{
